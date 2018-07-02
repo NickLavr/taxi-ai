@@ -28,7 +28,7 @@ class TaxiEnv(discrete.DiscreteEnv):
     - other letters: locations
 
     """
-    metadata = {'render.modes': ['human', 'ansi', 'close']}
+    metadata = {'render.modes': ['human', 'ansi']}
 
     def __init__(self):
         self.desc = np.asarray(MAP,dtype='c')
@@ -106,7 +106,9 @@ class TaxiEnv(discrete.DiscreteEnv):
         assert 0 <= i < 5
         return reversed(out)
 
-    def render(self, mode='human'):
+    def render(self, mode='human', close=False):
+        if close:
+            return
         outfile = StringIO() if mode == 'ansi' else sys.stdout
 
         out = self.desc.copy().tolist()
