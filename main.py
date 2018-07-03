@@ -33,24 +33,19 @@ class RunAgent():
 
 
 ra = RunAgent()
-ra.agent.log = True
+# ra.agent.log = True
 ra.agent.load_memory()
-ra.agent.RF = 0
+# ra.agent.RF = 0.1
+cnt = 0
 try:
     while True:
         ra.agent.LR *= 0.9999
-        ra.agent.RF *= 0.999
-        print(ra.run_maxQ(), ra.agent.RF)
-        break
+        # ra.agent.RF *= 0.999
+        print(cnt, ra.run_maxQ(), ra.agent.RF)
         ra.agent.save_memory()
+        cnt += 1
+        break
 
 except Exception as e:
     print('Terminate')
     ra.agent.save_memory()
-# ra.render = False
-# i = 0
-# while True:
-#     print('Epoh {}; total steps: {}; LR {}; RF {}'.format(i, ra.do_episode(), ra.agent.LR, ra.agent.RF))
-#     ra.agent.RF *= 0.999
-#     ra.agent.LR *= 0.999
-#     i += 1

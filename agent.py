@@ -168,6 +168,8 @@ class MAXQAgent(object):
             print("in node {}, observation {}".format(current_node.id, self.taxiDecode(observation)))
         if current_node.is_primitive():
             next_observation, reward, done, _ = env.step(current_node.action)
+            self.V[(current_node.id, observation)] = self.V[(current_node.id, observation)] * (1 - self.LR) + \
+                self.LR * reward
             if self.log:
                 env.render()
             if done:
