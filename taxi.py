@@ -74,8 +74,9 @@ class TaxiEnv(discrete.DiscreteEnv):
                                 if (taxiloc == locs[destidx]) and passidx==4:
                                     done = True
                                     reward = 20
-                                elif (taxiloc in locs) and passidx==4:
-                                    newpassidx = locs.index(taxiloc)
+                                # elif (taxiloc in locs) and passidx==4:
+                                #     newpassidx = locs.index(taxiloc)
+                                #     reward = -10
                                 else:
                                     reward = -10
                             newstate = self.encode(newrow, newcol, newpassidx, destidx)

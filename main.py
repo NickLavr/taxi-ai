@@ -1,5 +1,6 @@
 from taxi import TaxiEnv
-from agent import QLearningAgent as Agent
+from agent import MAXQAgent as Agent
+# from agent import QLearningAgent as Agent
 # from agent import RandomAgent as Agent
 
 class RunAgent():
@@ -26,14 +27,30 @@ class RunAgent():
                 break
         return amount
 
+    def run_maxQ(self):
+        return self.agent.MAXQ(self.agent.root, self.env.reset(), self.env)
 
 
 
 ra = RunAgent()
-ra.render = False
-i = 0
-while True:
-    print('Epoh {}; total steps: {}; LR {}; RF {}'.format(i, ra.do_episode(), ra.agent.LR, ra.agent.RF))
-    ra.agent.RF *= 0.999
-    ra.agent.LR *= 0.999
-    i += 1
+ra.agent.log = True
+ra.agent.load_memory()
+ra.agent.RF = 0
+try:
+    while True:
+        ra.agent.LR *= 0.9999
+        ra.agent.RF *= 0.999
+        print(ra.run_maxQ(), ra.agent.RF)
+        break
+        ra.agent.save_memory()
+
+except Exception as e:
+    print('Terminate')
+    ra.agent.save_memory()
+# ra.render = False
+# i = 0
+# while True:
+#     print('Epoh {}; total steps: {}; LR {}; RF {}'.format(i, ra.do_episode(), ra.agent.LR, ra.agent.RF))
+#     ra.agent.RF *= 0.999
+#     ra.agent.LR *= 0.999
+#     i += 1
