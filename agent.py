@@ -13,6 +13,8 @@ class MAXQAgent(object):
         self.DF = 0.99
         self.RF = 0.3
 
+        self.total_reward = 0
+
         # V[(Node ID, observation)] -> the expected cumulative reward of executing Node
         # starting in state observatioin until Node terminates.
         self.V = defaultdict(lambda: 0)
@@ -22,6 +24,9 @@ class MAXQAgent(object):
         self.C = defaultdict(lambda: 0)
 
         self.init_nodes()
+
+    def reset(self):
+        self.total_reward = 0
 
     def save_memory(self, filename='memory.pickle'):
         pickle.dump([dict(self.V), dict(self.C)], open(filename, 'wb'))
@@ -143,11 +148,13 @@ class MAXQAgent(object):
         put = self.Node(self, -1, PUT_PASS, MAXQAgent.check_dropoff, [primitive_dropoff] + navigates)
         self.root = self.Node(self, -1, ROOT, MAXQAgent.check_done, [get, put])
 
+
     def MAXQ(self, current_node, observation, env):
         if self.log:
             print("in node {}, observation {}".format(current_node.id, self.taxiDecode(observation)))
         if current_node.is_primitive():
             next_observation, reward, done, _ = env.step(current_node.action)
+            self.total_reward += reward
             self.V[current_node.id, observation] = self.V[current_node.id, observation] * (1 - self.LR) + \
                                                    self.LR * reward
             if self.log:
@@ -156,7 +163,7 @@ class MAXQAgent(object):
                 return (1, "DONE")
             return (1, next_observation)
         else:
-            count = 0
+            count, reward = 0, 0
             while not current_node.T(observation):
                 next_node = current_node.choose_child(observation)
                 N, next_observation = self.MAXQ(next_node, observation, env)
