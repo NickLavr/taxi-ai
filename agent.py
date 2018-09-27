@@ -175,3 +175,242 @@ class MAXQAgent(object):
                 observation = next_observation
                 count += N
             return count, observation
+
+
+
+class HG(object):
+    def __init__(self):
+        pass
+
+    observation_variables_amount = 6
+    # taxi x, taxi y, passx, passy, pass in taxi, destination_index
+    @staticmethod
+    def taxiDecode(i):
+        if (i == -1):
+            return [-1] * HG.observation_variables_amount
+        destination = i % 4 # destination
+        i = i // 4
+        pl = i % 5
+        # out.append(i % 5) # passloc [0..3] location or 4 in taxi
+        i = i // 5
+        taxiy = i % 5 # taxi y
+        i = i // 5
+        taxix = i # taxi x
+        assert 0 <= i < 5
+        px, py = 0, 0
+        in_taxi = 1 if pl == 4 else 0
+        if pl == 4:
+            px, py = taxix, taxiy
+        else:
+            px, py = [(0, 0), (0, 4), (4, 0), (4, 3)][pl]
+        return [taxix, taxiy, px, py, in_taxi, destination]
+
+    @staticmethod
+    def decode_trajectory(trajectory):
+        decode_item  = lambda x: [x[0], x[1], HG.taxiDecode(x[2])]
+        return list(map(decode_item, trajectory))
+
+
+    @staticmethod
+    def build_CAT(env, trajectories_amount=10):
+        trajectories = [HG.decode_trajectory(HG.relax_trajectory(HG.get_random_trajectory(env))) for _ in range(trajectories_amount)]
+
+        return trajectories
+
+    @staticmethod
+    def get_random_trajectory(env, step_limit=10000):
+        observation = env.reset()
+        trajectory = [[None, None, observation]]
+
+        for _ in range(step_limit):
+            action = env.action_space.sample()
+            next_observation, reward, done, _ = env.step(action)
+            # trajectory.append([action, reward, next_observation if not done else -1])
+            trajectory.append([action, reward, next_observation])
+            if done:
+                return trajectory
+        return trajectory
+
+    @staticmethod
+    def relax_trajectory(trajectory):
+
+        # observation -> index
+        observations = dict()
+
+        for index, (action, reward, observation) in enumerate(trajectory):
+            if observation not in observations:
+                observations[observation] = index
+            else:
+                for i in range(observations[observation] + 1, index):
+                    if trajectory[i] is not None:
+                        observations.__delitem__(trajectory[i][2])
+                        trajectory[i] = None
+                trajectory[index] = None
+        return [i for i in trajectory if i is not None]
+
+
+    @staticmethod
+    def get_goal_condition(cats):
+        raise NotImplementedError
+
+    @staticmethod
+    def HierGen(models, cats):
+        g = HG.get_goal_condition(cats)
+        many_actions = False
+        for i in cats:
+            if len(cats) > 1:
+                many_actions = True
+        if many_actions:
+            tasks = HG.HierBuilder(models, cats)
+            if len(tasks) > 0:
+                raise NotImplementedError
+                return
+            actions = ExtractUltimateActions(cats)
+            taskQ = HG.HierBuilder(models, cats.extract_addition(actions))
+            if len(taskQ) > 0:
+                task = HG.HierGen(models, cats.extract(actions))
+                task.add_child(taskQ)
+                return task
+        return task(g.variables, g, cats.actions)
+
+    
+    @staticmethod
+    def ExtractUltimateActions(cats):
+        raise NotImplementedError
+
+
+    class CAT_trajectory:
+        start_action = -1
+        end_action = -2
+        #observation:  taxi x, taxi y, passx, passy, pass in taxi, destination_index
+        #actions: up, down, left, right, pickup, dropoff, ..., end action, start action
+        checked_variables = [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1, 2, 3, 4], [0, 1, 4, 5], [0, 1, 2, 3, 4, 5], []]
+
+
+        def __init__(self, list_trajectory):
+            trajectory = []
+
+            trajectory.append(self.tr_node([None] * HG.observation_variables_amount, self.start_action, 0))
+            for i in range(len(list_trajectory) - 1):
+                trajectory.append(self.tr_node(list_trajectory[i][2], list_trajectory[i + 1][0], list_trajectory[i + 1][1]))
+            trajectory.append(self.tr_node(list_trajectory[-1][2], self.end_action, 0))
+
+            for variable in range(HG.observation_variables_amount):
+                tail = 0
+                for head in range(1, len(trajectory) - 1):
+                    if variable in self.checked_variables[trajectory[head].action] :
+                        trajectory[head].incoming[variable] = tail
+                        trajectory[tail].outgoing[variable].add(head)
+
+                    if trajectory[head].observation[variable] != trajectory[head + 1].observation[variable]:
+                        tail = head
+                if True:
+                    trajectory[-1].incoming[variable] = tail;
+                    trajectory[tail].outgoing[variable].add(len(trajectory) - 1);
+
+
+            self.trajectory = trajectory
+
+
+        class tr_node:
+            def __init__(self, observation, action, reward):
+                self.observation = observation
+                self.action = action
+                self.reward = reward
+                # arc arrows
+                self.incoming = [None] * HG.observation_variables_amount
+                self.outgoing = [set() for _ in range(HG.observation_variables_amount)]
+
+            def __repr__(self):
+                return "tr_node(obs: {}, action: {}, reward: {}. Arcs: incoming {}; outgoin {})".format(self.observation, self.action, self.reward, self.incoming, self.outgoing)
+
+            def get_all_outgoing(self):
+                res = set()
+                for i in self.outgoing:
+                    res = res.union(i)
+                return res
+
+        def __repr__(self):
+            return "trajectory: " + '\n'.join([i.__repr__() for i in self.trajectory])
+
+    
+    @staticmethod
+    def HierBuilder(models, cats):
+        g = HG.get_goal_condition(cats)
+        if g.all_false():
+            return []]
+        subscats = []
+        for var in g.variables:
+            subscats.append(Cat_scan(cats, [var]))
+        unfied_subcats = HG.unify(subscats)
+        result = []
+        if len(unfied_subcats) > 0:
+            subscats = unfied_subcats
+            for subcat in subscats:
+                taskQ = HG.HierBuilder(models, cats.extract_addition(subcat))
+                if len(taskQ) > 0:
+                    task = HG.HierGen(models, cats.extract(subcat))
+                    task.add_child(taskQ)
+                    result.append(task)
+                    subscats.remove(subcat)
+        if len(subcats) > 0:
+            merged = HG.merge_subcats(subcats)
+            if len(merged) == 0:
+                return []
+            taskQ = HG.HierBuilder(model, cats.extract_addition(merged))
+            if len(task) == 0:
+                return []
+            task = HG.HierGen(model, cats.extract(merged))
+            task.add_child(taskq)
+            result.append(task)
+        return result
+
+
+
+    @staticmethod
+    def merge_subcats(subcats):
+        """
+        Merge unsuccessful sets of sub-CATs into one set
+        """
+        raise NotImplementedError
+        
+    @staticmethod
+    def unify(subscats):
+        """Unify the partition of goal variables across trajectories"""
+        raise NotImplementedError
+    
+    @staticmethod
+    def CAT_scan(cats, variables):
+        ans = []
+        for cat in cats:
+            phi = set()
+            for var in variables:
+                for i, node in enumerate(cat.trajectory):
+                    if node.outgoing[var] == set(len(cat.trajectory) - 1):
+                        phi.add(i)
+
+            for i in reversed(range(len(cat.trajectory))):
+                if cat.trajectory[i].get_all_outgoing().issubset(phi):
+                    phi.add(i)
+
+            phi = sorted(list(phi))
+            for var in variables:
+                last_incoming = None
+                for i in range(len(phi)):
+                    incoming_index = cat.trajectory[phi[i]].incoming[var]
+                    if incoming_index is not None and incoming_index not in phi:
+                        last_incoming = i
+                phi = phi[last_incoming:]
+
+            ans.append(phi)
+        return ans
+
+    
+
+if __name__ == "__main__":
+    from taxi import TaxiEnv
+    agent = HG()
+    env = TaxiEnv()
+    tr = agent.build_CAT(env)
+    print(*tr, sep = '\n')
+    ct = HG.CAT_trajectory(tr[0])
